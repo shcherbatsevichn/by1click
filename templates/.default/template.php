@@ -5,7 +5,7 @@
 </div>
 
 <?	
-
+	//dump($arParams);
 	
 	$jsParams = array(
 		//"URL" => $arResult["DIR"], 
@@ -17,7 +17,7 @@
 
 <script>
 	//var myparams = new phpParams(<?//=json_encode($jsParams)?>);
-	var offer = <?=CUtil::PhpToJSObject($jsParams)?>;
+	var params = <?=CUtil::PhpToJSObject($arParams)?>;
 	/*BX.ready(function () {
 	var myparams = new phpParams(<?//=CUtil::PhpToJSObject($jsParams)?>);
 	});*/

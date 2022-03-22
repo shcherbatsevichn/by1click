@@ -3,8 +3,15 @@ window.doAction = function(selectNode) { //выполняем действия �
     attributes = getSkuAttribute(selectNode);
     attributes['QUALITY'] = getQuality();
     attributes['PHONE'] = getPhoneNumber();
-    attributes['OFFERS'] = offer;
-    sendProductInfo(attributes);
+     BX.ajax.runComponentAction("custom:by1click", "makeOrder", {
+            mode: "class",
+            data: {
+                "productdata": attributes,
+				"params": window.params,
+            }
+        }).then(function(response) {
+            console.log(response);
+        });
 
 }
 
@@ -56,16 +63,7 @@ getQuality = function() { //получить выбранное количест
 
 sendProductInfo = function(info) { // отправить собранную информацию
 
-		BX.ajax.runComponentAction("custom:by1click", "makeOrder", {
-			mode: "class",
-			data: {
-				"email": "vasya@email.tld",
-				"username": "Василий",
-				"message": "Где мой заказ? Жду уже целый час!"
-			}
-		}).then(function (response) {
-		console.log(response);
-});
+       
         /*BX.ajax({
             method: 'POST',
             url: '/local/components/custom/by1click/ajax.php', // обработчик 
