@@ -12,15 +12,16 @@ if($arParams['MODE'] == 'ORDER'){
 </div>
 <?	
 }
-	//dump($arParams);
+	if($arParams['MODE'] == 'DETAIL'){
+		$jsParams = $arParams;
+	}
+	if($arParams['MODE'] == 'ORDER'){
+		$jsParams['MODE'] = $arParams['MODE'];
+	}
 ?>
 
 
 
 <script>
-	//var myparams = new phpParams(<?//=json_encode($jsParams)?>);
-	var params = <?=CUtil::PhpToJSObject($arParams)?>;
-	/*BX.ready(function () {
-	var myparams = new phpParams(<?//=CUtil::PhpToJSObject($jsParams)?>);
-	});*/
+	var params = <?=CUtil::PhpToJSObject($jsParams)?>;
 </script>

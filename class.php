@@ -10,20 +10,16 @@ require($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_before.ph
 
 use Bitrix\Sale\Order;
 use Bitrix\Sale\Basket;
-use Bitrix\Main\Error;
-use Bitrix\Main\Errorable;
-use Bitrix\Main\ErrorCollection;
-use Bitrix\Main\Engine\ActionFilter;
+use \Bitrix\Sale\Fuser;
+
+use Bitrix\Main\UserTable;
+
+use Bitrix\Main\SystemException;
+
 use Bitrix\Main\Engine\Contract\Controllerable;
 use Bitrix\Main\Context;
-use \Bitrix\Sale\Fuser;
-use Bitrix\Main\UserTable;
+
 use CBitrixComponent;
-
-use \Bitrix\Main\Application;
-
-
-
 use \Bitrix\Main\Loader;
 
 Loader::includeModule("sale");
@@ -31,32 +27,19 @@ Loader::includeModule("catalog");
 
 class ByOneClick extends CBitrixComponent implements Controllerable {
 
-    
-
     private $basketInfo; // параметры 
-    private $basket;
-    private $order;  //заказ 
-    private $offers;    //Оффер
-    private $orderInfo; //Информация о заказе
-    private $result;    //результат
-    private $params;
-    
-    
+    private $basket; //экземпляр корзины
+    private $order;  //экземпляр товара 
+        
 
     public function onPrepareComponentParams($arParams)
     {
-        $this->params = $arParams;
         return $arParams;
     }
 
     public function executeComponent()
     {
-
         $this->includeComponentTemplate();
-    }
-
-    public function makeReques(){
-        return "function";
     }
 
     public function configureActions(): array
@@ -70,29 +53,33 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
  
     public function makeOrderAction($productdata = '', $params = ''): array
     {
-        if($params['MODE'] == 'DETAIL'){
-            $this->createBasket(); //создаём корзину
-            $this->getItem($productdata, $params['OFFERS']); //получаем продукт(для детального товара)
-            $this->setItems();//добавляем его в заказ
+
+        try{
+            if($params['MODE'] == 'DETAIL'){
+                $this->createBasket(); //создаём корзину
+                $this->getItem($productdata, $params['OFFERS']); //получаем продукт(для детального товара)
+                $this->setItems();//добавляем его в заказ
+            }
+            if($params['MODE'] == 'ORDER'){
+                $this->getBasketUser();
+            }
+            global $USER;
+            $id = $USER->GetID(); //если пользователь авторизован, то заказ будет на его акк
+            if(!$id){
+                $id = $this->registerUserByPhone($productdata['PHONE']); //если нет, регистрируем и авторизуем(если нет в базе)
+            }
+            $this->createOrder($id); //создаем заказ 
+            $this->setOrderProperty($productdata['PHONE']); // заполняем пропсы
+            $this->setOrder(); //сохраняем заказ  
+
+            $result = 'Спасибо за заказ. Наш оператор свяжется с Вами в ближайшее время.';
         }
-        if($params['MODE'] == 'ORDER'){
-            $this->getBasketUser();
+        catch (SystemException $exception){
+            $result = $exception->getMessage();
         }
-        global $USER;
-        $id = $USER->GetID(); //если пользователь авторизован, то заказ будет на его акк
-        if(!$id){
-            $id = $this->registerUserByPhone($productdata['PHONE']); //если нет, регистрируем и авторизуем(если нет в базе)
-        }
-        $this->createOrder($id); //создаем заказ 
-        $this->setOrderProperty($productdata['PHONE']); // заполняем пропсы
-        $this->setOrder(); //сохраняем заказ
-        
-        
-        $result['function'] = $params;
-        //$result['ID'] = $USER->GetID();
-        return [
-            "result" => $result,
-        ];
+            return [
+                "result" => $result,
+            ];
         
     }
 
@@ -109,6 +96,7 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
     private function getBasketUser(){
         $this->basket = Basket::loadItemsForFUser(Fuser::getId(), Context::getCurrent()->getSite());
     }
+
     private function createOrder($userID){
         $this->order = Order::create(SITE_ID, $userID, 'RUB');
     }
@@ -117,8 +105,7 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
         $this->basket = Basket::create(SITE_ID);
     }
 
-
-    private function setItems(){
+    private function setItems(){ //наполняем корзину товарами
         foreach($this->basketInfo as $itemInfo){
             $item = $this->basket->createItem('catalog', $itemInfo['ID']);
             $item->setField('QUANTITY', $itemInfo['QUANTITY']);
@@ -130,7 +117,7 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
 
     }
 
-    private function setOrderProperty($phone){
+    private function setOrderProperty($phone){ //устанавливаем пропсы в заказ
         $propertyCollection = $this->order->getPropertyCollection();
         $propertyCodeToId = array();
 
@@ -144,7 +131,6 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
         $propertyValue->setValue('YES');
     }
 
-
     private function setOrder(){        
         
 		$this->order->setPersonTypeId(1);
@@ -152,14 +138,15 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
 		$r = $this->order->save();
 		if (!$r->isSuccess())
 		{ 
-			var_dump($r->getErrorMessages());
+			throw new SystemException("Произошла ошибка, попробуйте снова или обратитесь в службу поддержки");
         }
         return $r;
     }
         
-    private function registerUserByPhone($phone)
+    private function registerUserByPhone($phone) //регистрация пользователя по номеру телефона
     {
-        if($this->checkUserByPhone($phone) == false){ // если пользователь не зарегистрирован
+        $userID = $this->checkUserByPhone($phone);
+        if(!$userID){ // если пользователь не зарегистрирован
             $password = rand(0, 9).rand(14, 99).rand().rand().rand().rand().rand().rand().rand().rand();
             $user = new CUser;
             $fields = Array(
@@ -185,23 +172,19 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
             return $ID;
             }
         
-        } else { // если пользователь зарегистрирован
-            return $this->checkUserByPhone($phone);
+        }else{ // если пользователь зарегистрирован
+            return $userID;
         }
-        }
-        /**
-        * id пользователя по номеру телефона
-        * возвращает false если не существует
-        * возвращает id если существует
-        */
-    private function checkUserByPhone($phone)
+    }
+        
+    private function checkUserByPhone($phone) //проверяем, существует ли пользователь
     {
         $user = UserTable::getRow(array(
             'filter' => array(
                 '=LOGIN' => trim($phone, '+'),
             ),
             'select' => array('ID')
-        ));
+        )); //ищем среди зарегистрированных пользователей
 
         if($user['ID'])
         {

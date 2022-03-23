@@ -1,22 +1,19 @@
 window.doAction = function(selectNode) { //выполняем действия по сбору информации, формированию и отправке
     var attributes = {};
-	if(window.params['MODE'] == 'DETAIL'){
-		attributes = getSkuAttribute(selectNode);
-		attributes['QUALITY'] = getQuality();
-	}
+    if (window.params['MODE'] == 'DETAIL') {
+        attributes = getSkuAttribute(selectNode);
+        attributes['QUALITY'] = getQuality();
+    }
     attributes['PHONE'] = getPhoneNumber();
     BX.ajax.runComponentAction("custom:by1click", "makeOrder", {
         mode: "class",
         data: {
             "productdata": attributes,
-			"params": window.params,
+            "params": window.params,
         }
-        }).then(function(response) {
-			if(window.params['MODE'] == 'ORDER'){
-				location.reload();
-			}
-			
-        });
+    }).then(function(response) {
+        window.getPopUpResult(response.data['result']);
+    });
 
 }
 
@@ -99,13 +96,13 @@ window.getPopUp = function() { // вызвать popup
             oPopup.show();
         });
     }
-	
+
 }
 
 window.getPopUpOrder = function() { // вызвать popup 
-	var selectNode = '';
-	if(window.params["BASKET_ITEMS"] != ''){
-		BX.ready(function() {
+    var selectNode = '';
+    if (window.params["BASKET_ITEMS"] != '') {
+        BX.ready(function() {
             var oPopup = new BX.PopupWindow(
                 "my_answer",
                 null, {
@@ -134,8 +131,43 @@ window.getPopUpOrder = function() { // вызвать popup
             oPopup.setContent(BX('hideBlock'));
             oPopup.show();
         });
-	}else{
+    } else {
         alert('Ваша корзина пуста! Добавьте товары в корзину!');
     }
-	
+
+}
+
+window.getPopUpResult = function(message) { // вызвать popup 
+    BX.ready(function() {
+        var rPopup = new BX.PopupWindow(
+            "result",
+            null, {
+                content: '<div class="popup-good popup__content"><label class="form__label">' + message + '</lable></div>', //начинка 
+                closeIcon: { right: "20px", top: "10px" },
+                zIndex: 0,
+                offsetLeft: 0,
+                offsetTop: 0,
+                draggable: { restrict: false },
+                buttons: [
+                    new BX.PopupWindowButton({
+                        text: "Закрыть",
+                        className: "btn popup-good__btn by-1-click-popup-btn",
+                        events: {
+                            click: function() {
+                                if (checkPhoneNumber()) {
+                                    this.popupWindow.close();
+                                    if (window.params['MODE'] == 'ORDER') {
+                                        location.reload();
+                                    }
+                                }
+
+                            }
+                        }
+                    }),
+                ]
+            });
+        rPopup.setContent(BX('hideBlock'));
+        rPopup.show();
+    });
+
 }
