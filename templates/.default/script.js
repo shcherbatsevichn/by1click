@@ -1,16 +1,21 @@
 window.doAction = function(selectNode) { //выполняем действия по сбору информации, формированию и отправке
-    var attributes;
-    attributes = getSkuAttribute(selectNode);
-    attributes['QUALITY'] = getQuality();
+    var attributes = {};
+	if(window.params['MODE'] == 'DETAIL'){
+		attributes = getSkuAttribute(selectNode);
+		attributes['QUALITY'] = getQuality();
+	}
     attributes['PHONE'] = getPhoneNumber();
-     BX.ajax.runComponentAction("custom:by1click", "makeOrder", {
-            mode: "class",
-            data: {
-                "productdata": attributes,
-				"params": window.params,
-            }
+    BX.ajax.runComponentAction("custom:by1click", "makeOrder", {
+        mode: "class",
+        data: {
+            "productdata": attributes,
+			"params": window.params,
+        }
         }).then(function(response) {
-            console.log(response);
+			if(window.params['MODE'] == 'ORDER'){
+				location.reload();
+			}
+			
         });
 
 }
@@ -61,25 +66,6 @@ getQuality = function() { //получить выбранное количест
     return inputQuality.value;
 }
 
-sendProductInfo = function(info) { // отправить собранную информацию
-
-       
-        /*BX.ajax({
-            method: 'POST',
-            url: '/local/components/custom/by1click/ajax.php', // обработчик 
-            data: info,
-            dataType: 'json',
-            processData: true,
-			emulateOnload: true,
-            onsuccess: function(res) {
-                console.log('res: ', res);
-            },
-            onfailure: function() {
-                alert('error');
-            }
-        });*/
-    }
-    //
 window.getPopUp = function() { // вызвать popup 
     var selectNode = checkSelect();
     if (selectNode) {
@@ -113,5 +99,43 @@ window.getPopUp = function() { // вызвать popup
             oPopup.show();
         });
     }
+	
+}
 
+window.getPopUpOrder = function() { // вызвать popup 
+	var selectNode = '';
+	if(window.params["BASKET_ITEMS"] != ''){
+		BX.ready(function() {
+            var oPopup = new BX.PopupWindow(
+                "my_answer",
+                null, {
+                    content: '<div class="popup-good popup__content"><div><label for="phone" class="form__label">Введите Ваш номер телефона:</lable></div><div><input id="pop-up-input-phone" name="phone" class="input" type="text" requred></div></div>', //начинка 
+                    closeIcon: { right: "20px", top: "10px" },
+                    zIndex: 0,
+                    offsetLeft: 0,
+                    offsetTop: 0,
+                    draggable: { restrict: false },
+                    buttons: [
+                        new BX.PopupWindowButton({
+                            text: "Оформить заказ",
+                            className: "btn popup-good__btn by-1-click-popup-btn",
+                            events: {
+                                click: function() {
+                                    if (checkPhoneNumber()) {
+                                        window.doAction(selectNode);
+                                        this.popupWindow.close();
+                                    }
+
+                                }
+                            }
+                        }),
+                    ]
+                });
+            oPopup.setContent(BX('hideBlock'));
+            oPopup.show();
+        });
+	}else{
+        alert('Ваша корзина пуста! Добавьте товары в корзину!');
+    }
+	
 }

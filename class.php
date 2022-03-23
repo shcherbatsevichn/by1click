@@ -15,17 +15,19 @@ use Bitrix\Main\Errorable;
 use Bitrix\Main\ErrorCollection;
 use Bitrix\Main\Engine\ActionFilter;
 use Bitrix\Main\Engine\Contract\Controllerable;
+use Bitrix\Main\Context;
+use \Bitrix\Sale\Fuser;
 use Bitrix\Main\UserTable;
 use CBitrixComponent;
 
 use \Bitrix\Main\Application;
 
-use \Bitrix\Main\Context;
+
 
 use \Bitrix\Main\Loader;
 
-Bitrix\Main\Loader::includeModule("sale");
-Bitrix\Main\Loader::includeModule("catalog");
+Loader::includeModule("sale");
+Loader::includeModule("catalog");
 
 class ByOneClick extends CBitrixComponent implements Controllerable {
 
@@ -68,9 +70,14 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
  
     public function makeOrderAction($productdata = '', $params = ''): array
     {
-        $this->createBasket(); //создаём корзину
-        $this->getItem($productdata, $params['OFFERS']); //получаем продукт(для детального товара)
-        $this->setItems();//добавляем его в заказ
+        if($params['MODE'] == 'DETAIL'){
+            $this->createBasket(); //создаём корзину
+            $this->getItem($productdata, $params['OFFERS']); //получаем продукт(для детального товара)
+            $this->setItems();//добавляем его в заказ
+        }
+        if($params['MODE'] == 'ORDER'){
+            $this->getBasketUser();
+        }
         global $USER;
         $id = $USER->GetID(); //если пользователь авторизован, то заказ будет на его акк
         if(!$id){
@@ -80,16 +87,16 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
         $this->setOrderProperty($productdata['PHONE']); // заполняем пропсы
         $this->setOrder(); //сохраняем заказ
         
-      
-        $result['function'] = $this->registerUserByPhone($productdata['PHONE']);
-        $result['ID'] = $USER->GetID();
+        
+        $result['function'] = $params;
+        //$result['ID'] = $USER->GetID();
         return [
             "result" => $result,
         ];
         
     }
 
-    /*only Detail Product Page*/
+    /*only DETAIL Product Page*/
     private function getItem($params, $offerList){
         foreach($offerList as $offer){
             if($offer['TREE']["PROP_{$params['SKUID']}"] == $params['VALUEID']){
@@ -98,7 +105,10 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
         }
         $this->basketInfo[0]['QUANTITY'] = $params['QUALITY'];
     }
-
+    /*only ORDER  Page*/
+    private function getBasketUser(){
+        $this->basket = Basket::loadItemsForFUser(Fuser::getId(), Context::getCurrent()->getSite());
+    }
     private function createOrder($userID){
         $this->order = Order::create(SITE_ID, $userID, 'RUB');
     }
@@ -186,7 +196,7 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
         */
     private function checkUserByPhone($phone)
     {
-        $user = \Bitrix\Main\UserTable::getRow(array(
+        $user = UserTable::getRow(array(
             'filter' => array(
                 '=LOGIN' => trim($phone, '+'),
             ),

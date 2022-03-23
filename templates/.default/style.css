@@ -1,4 +1,26 @@
-.by-1-click-popup-btn{
+.by-1-click-popup-btn {
     margin-left: auto;
     margin-right: auto;
+}
+
+.onebuttonby-btn {
+    text-decoration: none;
+    font-size: 1.4rem;
+    line-height: 30px;
+    font-family: pf_kids_prograde_five, 'Trebuchet MS', sans-serif;
+    color: white;
+    padding: 10px 30px 10px 30px;
+    background-color: #0076bd;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.onebuttonby-btn:hover {
+    color: white;
+    background-color: #009a5c;
+}
+
+.onebuttonby-btn:active {
+    box-shadow: inset 0 2px 4px 0 rgb(1 3 5 / 25%);
 }
