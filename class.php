@@ -13,8 +13,9 @@ use Bitrix\Sale\Basket;
 use \Bitrix\Sale\Fuser;
 
 use Bitrix\Main\UserTable;
-
 use Bitrix\Main\SystemException;
+
+use Lib\Cuponlib\CuponCreater;
 
 use Bitrix\Main\Engine\Contract\Controllerable;
 use Bitrix\Main\Context;
@@ -30,6 +31,7 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
     private $basketInfo; // параметры 
     private $basket; //экземпляр корзины
     private $order;  //экземпляр товара 
+    private $cupon;
         
 
     public function onPrepareComponentParams($arParams)
@@ -55,24 +57,38 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
     {
 
         try{
-            if($params['MODE'] == 'DETAIL'){
-                $this->createBasket(); //создаём корзину
-                $this->getItem($productdata, $params['OFFERS']); //получаем продукт(для детального товара)
-                $this->setItems();//добавляем его в заказ
-            }
-            if($params['MODE'] == 'ORDER'){
-                $this->getBasketUser();
-            }
+
+            //Проверяем пользователя, авторизируем при необходимости
             global $USER;
             $id = $USER->GetID(); //если пользователь авторизован, то заказ будет на его акк
             if(!$id){
                 $id = $this->registerUserByPhone($productdata['PHONE']); //если нет, регистрируем и авторизуем(если нет в базе)
             }
+            // Проверяем наличие купона у пользователя и подхватываем его, если есть
+            $cupont =  CuponCreater::getCupon($id);
+            $discoint = 0;
+            if($cupont){
+                $discoint = $cupont['DISCOUNT'];
+            }
+            if($params['MODE'] == 'DETAIL'){
+                $this->createBasket(); //создаём корзину
+                $this->getItem($productdata, $params['OFFERS']); //получаем продукт(для детального товара)
+                $this->setItems();//добавляем его в заказ
+            }
+
+            if($params['MODE'] == 'ORDER'){
+                $this->getBasketUser();
+            }
             $this->createOrder($id); //создаем заказ 
             $this->setOrderProperty($productdata['PHONE']); // заполняем пропсы
-            $this->setOrder(); //сохраняем заказ  
-
-            $result = 'Спасибо за заказ. Наш оператор свяжется с Вами в ближайшее время.';
+            $this->setOrder(); //устанавливаем значения в заказ
+            $this->saveOrder();     
+            $orderId = $this->order->getId();
+            if($cupont){
+                CuponCreater::applyCupon($cupont['ID'], $orderId);
+            }
+            CuponCreater::createCupon($id);
+            $result = "Спасибо за заказ {$orderId}. Наш оператор свяжется с Вами в ближайшее время.";
         }
         catch (SystemException $exception){
             $result = $exception->getMessage();
@@ -96,6 +112,12 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
     private function getBasketUser(){
         $this->basket = Basket::loadItemsForFUser(Fuser::getId(), Context::getCurrent()->getSite());
     }
+    
+    private function setCuponinOrder($discount){
+        $this->order->setField( "PRICE",
+            $this->order->getBasket()->getPrice() - $discount,
+        );
+      }
 
     private function createOrder($userID){
         $this->order = Order::create(SITE_ID, $userID, 'RUB');
@@ -135,14 +157,19 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
         
 		$this->order->setPersonTypeId(1);
 		$this->order->setBasket($this->basket);
+        $this->order->doFinalAction();
+    }
+    
+    private function saveOrder(){        
 		$r = $this->order->save();
 		if (!$r->isSuccess())
 		{ 
 			throw new SystemException("Произошла ошибка, попробуйте снова или обратитесь в службу поддержки");
         }
-        return $r;
     }
-        
+
+    
+
     private function registerUserByPhone($phone) //регистрация пользователя по номеру телефона
     {
         $userID = $this->checkUserByPhone($phone);
