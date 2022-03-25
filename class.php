@@ -1,21 +1,17 @@
 <?if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true) die();
 
-define("NO_KEEP_STATISTIC", "Y");
-
-define("NO_AGENT_STATISTIC","Y");
-
-define("NOT_CHECK_PERMISSIONS", true);
-
-require($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_before.php");
 
 use Bitrix\Sale\Order;
 use Bitrix\Sale\Basket;
 use \Bitrix\Sale\Fuser;
+use \Bitrix\Main\Engine\CurrentUser;
 
 use Bitrix\Main\UserTable;
 use Bitrix\Main\SystemException;
 
 use Lib\Cuponlib\CuponCreater;
+
+
 
 use Bitrix\Main\Engine\Contract\Controllerable;
 use Bitrix\Main\Context;
@@ -53,23 +49,19 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
         ];
     }
  
-    public function makeOrderAction($productdata = '', $params = ''): array
+    public function makeOrderAction($productdata = '', $params = '', CurrentUser $user): array
     {
 
         try{
 
             //Проверяем пользователя, авторизируем при необходимости
-            global $USER;
-            $id = $USER->GetID(); //если пользователь авторизован, то заказ будет на его акк
+            $id = $user->GetID(); //если пользователь авторизован, то заказ будет на его акк
             if(!$id){
                 $id = $this->registerUserByPhone($productdata['PHONE']); //если нет, регистрируем и авторизуем(если нет в базе)
             }
             // Проверяем наличие купона у пользователя и подхватываем его, если есть
-            $cupont =  CuponCreater::getCupon($id);
+            
             $discoint = 0;
-            if($cupont){
-                $discoint = $cupont['DISCOUNT'];
-            }
             if($params['MODE'] == 'DETAIL'){
                 $this->createBasket(); //создаём корзину
                 $this->getItem($productdata, $params['OFFERS']); //получаем продукт(для детального товара)
@@ -84,11 +76,12 @@ class ByOneClick extends CBitrixComponent implements Controllerable {
             $this->setOrder(); //устанавливаем значения в заказ
             $this->saveOrder();     
             $orderId = $this->order->getId();
+            $cupont =  CuponCreater::getCupon($id, $orderId);
             if($cupont){
-                CuponCreater::applyCupon($cupont['ID'], $orderId);
+                CuponCreater::applyCupon($cupont['ID'], $orderId, $cupont['REG_ID'] );
             }
-            CuponCreater::createCupon($id);
-            $result = "Спасибо за заказ {$orderId}. Наш оператор свяжется с Вами в ближайшее время.";
+            $newcupon = CuponCreater::createCupon($id);
+            $result = "Спасибо за заказ {$orderId}. Наш оператор свяжется с Вами в ближайшее время.За заказ в 1 клик вы получаете купон {$newcupon}";
         }
         catch (SystemException $exception){
             $result = $exception->getMessage();
